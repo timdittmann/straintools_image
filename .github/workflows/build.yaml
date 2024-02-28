@@ -7,45 +7,45 @@ on:
   pull_request:
     branches:
       - main
+# https://docs.github.com/en/actions/publishing-packages/publishing-docker-images
 
+# Defines two custom environment variables for the workflow. These are used for the Container registry domain, and a name for the Docker image that this workflow builds.
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+# There is a single job in this workflow. It's configured to run on the latest available version of Ubuntu.
 jobs:
-  build-and-push:
+  build-and-push-image:
     runs-on: ubuntu-latest
+    # Sets the permissions granted to the `GITHUB_TOKEN` for the actions in this job.
+    permissions:
+      contents: read
+      packages: write
+      # 
     steps:
-
-    # For biggish images, github actions runs out of disk space.
-    # So we cleanup some unwanted things in the disk image, and reclaim that space for our docker use
-    # https://github.com/actions/virtual-environments/issues/2606#issuecomment-772683150
-    # and https://github.com/easimon/maximize-build-space/blob/b4d02c14493a9653fe7af06cc89ca5298071c66e/action.yml#L104
-    # This gives us a total of about 52G of free space, which should be enough for now
-    - name: cleanup disk space
-      run: |
-        sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
-        df -h
-
-    - name: Checkout files in repo
-      uses: actions/checkout@main
-
-    - name: Build the image and push to quay.io if not a pull request
-      uses: jupyterhub/repo2docker-action@master
-      with:
-        # Don't push the image during a PR build
-        NO_PUSH: "${{ github.event_name == 'pull_request' }}"
-        # Make sure username & password/token pair matches your registry credentials
-        DOCKER_USERNAME: ${{ secrets.QUAY_USERNAME }}
-        DOCKER_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
-        DOCKER_REGISTRY: "quay.io"
-        # Disable pushing a 'latest' tag, as this often just causes confusion
-        LATEST_TAG_OFF: true
-        # Put repo contents in /srv/repo, rather than the default (/home/jovyan). The home directory
-        # is mounted over by persistent storage when we are using the built image in a JupyterHub, and
-        # so all contents put in /home/jovyan are lost. This particularly prevents any 'start' script from
-        # working, as it is needed in runtime.
-        REPO_DIR: /srv/repo
-        #
-        # Uncomment and modify the following line with your image name, otherwise no push will happen
-        # IMAGE_NAME: "<quay-username>/<repository-name>"
-
-    # Lets us monitor disks getting full as images get bigger over time
-    - name: Show how much disk space is left
-      run: df -h
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      # Uses the `docker/login-action` action to log in to the Container registry registry using the account and password that will publish the packages. Once published, the packages are scoped to the account defined here.
+      - name: Log in to the Container registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # This step uses [docker/metadata-action](https://github.com/docker/metadata-action#about) to extract tags and labels that will be applied to the specified image. The `id` "meta" allows the output of this step to be referenced in a subsequent step. The `images` value provides the base name for the tags and labels.
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+      # This step uses the `docker/build-push-action` action to build the image, based on your repository's `Dockerfile`. If the build succeeds, it pushes the image to GitHub Packages.
+      # It uses the `context` parameter to define the build's context as the set of files located in the specified path. For more information, see "[Usage](https://github.com/docker/build-push-action#usage)" in the README of the `docker/build-push-action` repository.
+      # It uses the `tags` and `labels` parameters to tag and label the image with the output from the "meta" step.
+      - name: Build and push Docker image
+        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
