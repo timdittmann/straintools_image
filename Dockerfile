@@ -21,7 +21,7 @@ ENV CONDA_ENV=notebook \
     LC_ALL=C.UTF-8 \
     # Install conda in the same place repo2docker does
     #CONDA_DIR=/srv/conda
-    # Change to what docker stacks does https://github.com/EarthScope/strain-processing-notebooks/blob/aba9f9b5d2a199e75462c239ebf57a96dd33ffbf/docker-stacks-foundation/Dockerfile#L44C5-L44C25
+    # Change to where docker stacks does https://github.com/EarthScope/strain-processing-notebooks/blob/aba9f9b5d2a199e75462c239ebf57a96dd33ffbf/docker-stacks-foundation/Dockerfile#L44C5-L44C25
     CONDA_DIR=/opt/conda
 # All env vars that reference other env vars need to be in their own ENV block
 # Path to the python environment where the jupyter notebook packages are installed
